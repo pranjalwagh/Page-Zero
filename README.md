@@ -38,21 +38,28 @@ Built with [LangGraph](https://github.com/langchain-ai/langgraph) for the state 
 
 ### AI-Driven Remediation
 - **No hardcoded if/else** — Gemma-4-31b-it decides the exact kubectl commands based on live cluster state
+- **Batched Processing** — Handles cascading failures gracefully by evaluating and remediating multiple failing microservices simultaneously
+- **Dynamic Discovery** — Automatically detects deployments labeled `pagezero=enabled`
 - **Structured reasoning** — AI provides diagnosis, root cause, confidence level, and specific commands
 - **Retry with escalation** — Failed fixes are logged; Gemma receives "what I already tried" context to avoid repeating actions
 - **Degraded mode** — If the AI is unreachable, the agent falls back to heuristic-based remediation
 
+### Robustness & Monitoring
+- **L7 Synthetic Validation** — Verifies true application health via internal proxy endpoints, not just raw pod state
+- **Connectivity Watchdog** — Monitors the Kubernetes API connection itself, sending a P0 Slack alert if the VPN drops or the cluster control plane crashes
+- **Maintenance Mode** — Respects `sre.worldline.com/pause-agent="true"` annotations, allowing engineers to pause AI interventions during manual debugging
+
 ### Self-Learning Memory (Two-Tier)
 - **Permanent memory** (`incident_memory.json`) — Stores only successful resolutions (symptoms, commands, MTTR) across restarts
-- **Temporary memory** (in-process) — Tracks all attempts during an active incident, cleared on resolution or escalation
-- Past incidents are fed into Gemma's prompt so the agent learns from both successes and failures
+- **Temporary memory** (in-process) — Tracks all attempts during an active incident. Includes automatic orphan session pruning and size caps to prevent memory leaks during self-healing churn
 
 ### Security Hardening
-- **Shell injection prevention** — LLM-generated commands are parsed with `shlex.split()` (never `shell=True`) and scanned for shell metacharacters (`;`, `|`, `&&`, `` ` ``, `$()`, etc.)
-- **Command allowlist** — Only reversible commands are executed (`kubectl delete pod`, `kubectl scale`, `kubectl rollout undo/restart`, `kubectl set image/env`)
-- **Irreversible command blocking** — Commands like `kubectl delete deployment`, `kubectl patch`, `kubectl apply`, `kubectl create` are blocked and logged for human review
-- **Configurable SSL** — SSL verification enabled by default; configurable via `DISABLE_SSL_VERIFY` env var for corporate proxy environments
-- **Subprocess timeouts** — All kubectl calls have a 30-second timeout to prevent indefinite hangs
+- **Prompt Injection Defense** — Implements boundaries (`_fence_untrusted`) and regex-based log sanitizers to prevent attackers from hijacking the LLM via HTTP payload injection
+- **Stateful Deployment Protection** — Detects `stateful=true` labels and blocks any mutating command (even wildcard `--all` scaling) to prevent data corruption
+- **Registry Allowlisting** — Hardened `kubectl set image` to only allow pulls from trusted container registries, preventing malicious RCE image injection
+- **Strict Command Boundaries** — Reversible commands are allowed (`delete pod`, `scale`, `rollout undo/restart`, `set image`). Irreversible commands (like `delete deployment`, `patch`, `apply`, `set env`) are hard-blocked and logged for human review
+- **Alias Normalization** — Expands valid kubectl shorthands (`po`, `deploy`, `sts`) before security scans to prevent bypasses and false positives
+- **Shell injection prevention** — LLM-generated commands are parsed with `shlex.split()` and scanned for shell metacharacters (`;`, `|`, `&&`, `` ` ``, `$()`)
 
 ### Human Escalation
 - **Hard stop after 5 attempts** — Agent stops retrying and generates a detailed escalation report
