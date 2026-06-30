@@ -4,7 +4,6 @@
 
 PageZero is an autonomous SRE agent that auto-remediates Kubernetes failures at "Minute Zero" — before a single engineer gets paged. It monitors your cluster continuously, detects failures, reasons about root causes using **Gemma-4-31b-it** via the Google Gemini API, executes security-gated kubectl commands, verifies recovery, and learns from every incident.
 
-Built for the **Worldline Tech Forum** to demonstrate agentic AI in production-grade payment infrastructure.
 
 ---
 
